@@ -10,6 +10,7 @@
 #include <gsl/span>
 #include <iostream>
 #include <string>
+#include <math.h> 
 
 struct Header {
     glm::ivec3 dim;
@@ -77,6 +78,9 @@ std::string_view Volume::fileName() const
 float Volume::getVoxel(int x, int y, int z) const
 {
     const size_t i = size_t(x + m_dim.x * (y + m_dim.y * z));
+    if (m_data.size() < i) {
+        throw std::exception();
+    }
     return static_cast<float>(m_data[i]);
 }
 
@@ -113,15 +117,29 @@ float Volume::getSampleNearestNeighbourInterpolation(const glm::vec3& coord) con
         return static_cast<int>(f + 0.5f);
     };
 
-    return getVoxel(roundToPositiveInt(coord.x), roundToPositiveInt(coord.y), roundToPositiveInt(coord.z));
+    float x, y, z;
+    x = roundToPositiveInt(coord.x);
+    y = roundToPositiveInt(coord.y);
+    z = roundToPositiveInt(coord.z);
+    const float voxel_value = getVoxel(x, y, z);
+    return voxel_value;
 }
 
-// ======= TODO : IMPLEMENT the functions below for tri-linear interpolation ========
-// ======= Consider using the linearInterpolate and biLinearInterpolate functions ===
 // This function returns the trilinear interpolated value at the continuous 3D position given by coord.
 float Volume::getSampleTriLinearInterpolation(const glm::vec3& coord) const
 {
-    return 0.0f;
+    // check if the coordinate is within volume boundaries
+    if (glm::any(glm::lessThan(coord - 5.f, glm::vec3(0))) || glm::any(glm::greaterThanEqual(coord + 5.f, glm::vec3(m_dim))))
+        return 0.0f;
+
+    const int z_pos = ceil(coord.z);
+    const int z_neg = floor(coord.z);
+
+    const float bilini_pos = biLinearInterpolate(glm::vec2(coord.x, coord.y), z_pos);
+    const float bilini_neg = biLinearInterpolate(glm::vec2(coord.x, coord.y), z_neg);
+
+    const float factor_z = (coord.z - z_neg) / (z_pos - z_neg);
+    return linearInterpolate(bilini_neg, bilini_pos, factor_z);
 }
 
 // This function linearly interpolates the value at X using incoming values g0 and g1 given a factor (equal to the positon of x in 1D)
@@ -130,13 +148,32 @@ float Volume::getSampleTriLinearInterpolation(const glm::vec3& coord) const
 //   factor
 float Volume::linearInterpolate(float g0, float g1, float factor)
 {
-    return 0.0f;
+    if (factor < 0 || factor > 1) throw std::exception();
+
+    const float delta = (g0 > g1) ? (g0 - g1) : (g1 - g0);
+    const float base = (g0 > g1) ? g1 : g0;
+
+    return base + delta * factor;
+
 }
 
 // This function bi-linearly interpolates the value at the given continuous 2D XY coordinate for a fixed integer z coordinate.
 float Volume::biLinearInterpolate(const glm::vec2& xyCoord, int z) const
 {
-    return 0.0f;
+
+     const int y_neg = floor(xyCoord.y);
+     const int y_pos = ceil(xyCoord.y);
+     const int x_neg = floor(xyCoord.x);
+     const int x_pos = ceil(xyCoord.x);
+
+     const float factor_x = (xyCoord.x - x_neg) / (x_pos - x_neg);
+     const float factor_y = (xyCoord.y - y_neg) / (y_pos - y_neg);
+
+     const float g0 = linearInterpolate(getVoxel(x_neg, y_neg, z), getVoxel(x_pos, y_neg, z), factor_x);
+     const float g1 = linearInterpolate(getVoxel(x_neg, y_pos, z), getVoxel(x_pos, y_pos, z), factor_x);
+        
+     return linearInterpolate(g0, g1, factor_y);
+
 }
 
 
