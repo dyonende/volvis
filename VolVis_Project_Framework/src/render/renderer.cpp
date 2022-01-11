@@ -176,7 +176,19 @@ glm::vec4 Renderer::traceRayMIP(const Ray& ray, float sampleStep) const
 glm::vec4 Renderer::traceRayISO(const Ray& ray, float sampleStep) const
 {
     static constexpr glm::vec3 isoColor { 0.8f, 0.8f, 0.2f };
-    return glm::vec4(isoColor, 1.0f);
+    float isoVal = m_config.isoValue;
+
+    // Incrementing samplePos directly instead of recomputing it each frame gives a measureable speed-up.
+    glm::vec3 samplePos = ray.origin + ray.tmin * ray.direction;
+    const glm::vec3 increment = sampleStep * ray.direction;
+    for (float t = ray.tmin; t <= ray.tmax; t += sampleStep, samplePos += increment) {
+        const float val = m_pVolume->getSampleInterpolate(samplePos);
+        if (val >= isoVal) {
+            return glm::vec4(isoColor, 1.0f);
+        }
+    }
+
+    return glm::vec4(glm::vec3(0.0f), 1.0f);
 }
 
 // ======= TODO: IMPLEMENT ========

@@ -117,6 +117,7 @@ float Volume::getSampleNearestNeighbourInterpolation(const glm::vec3& coord) con
         return static_cast<int>(f + 0.5f);
     };
 
+    //easier to debug
     float x, y, z;
     x = roundToPositiveInt(coord.x);
     y = roundToPositiveInt(coord.y);
@@ -150,10 +151,7 @@ float Volume::linearInterpolate(float g0, float g1, float factor)
 {
     if (factor < 0 || factor > 1) throw std::exception();
 
-    const float delta = (g0 > g1) ? (g0 - g1) : (g1 - g0);
-    const float base = (g0 > g1) ? g1 : g0;
-
-    return base + delta * factor;
+    return g0 * (1-factor) + g1 * factor;
 
 }
 

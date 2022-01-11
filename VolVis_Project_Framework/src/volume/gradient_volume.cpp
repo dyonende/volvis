@@ -1,6 +1,7 @@
 #include "gradient_volume.h"
 #include <algorithm>
 #include <exception>
+#include <math.h>
 #include <glm/geometric.hpp>
 #include <glm/vector_relational.hpp>
 #include <gsl/span>
@@ -115,6 +116,9 @@ GradientVoxel GradientVolume::getGradientNearestNeighbor(const glm::vec3& coord)
 // Use the linearInterpolate function that you implemented below.
 GradientVoxel GradientVolume::getGradientLinearInterpolate(const glm::vec3& coord) const
 {
+    if (glm::any(glm::lessThan(coord - .5f, glm::vec3(0))) || glm::any(glm::greaterThanEqual(coord + .5f, glm::vec3(m_dim))))
+        return { glm::vec3(0.0f), 0.0f };
+
     return GradientVoxel {};
 }
 
@@ -123,7 +127,16 @@ GradientVoxel GradientVolume::getGradientLinearInterpolate(const glm::vec3& coor
 // At t=0, linearInterpolate should return g0 and at t=1 it returns g1.
 GradientVoxel GradientVolume::linearInterpolate(const GradientVoxel& g0, const GradientVoxel& g1, float factor)
 {
-    return GradientVoxel {};
+    if (factor < 0.f || factor > 1.f)
+        throw std::exception();
+
+    glm::vec3 temp0 = g0.dir * (1 - factor);
+    glm::vec3 temp1 = g1.dir * factor;
+    glm::vec3 dir = temp0 + temp1;
+
+    float magnitude = g0.magnitude * (1 - factor) + g1.magnitude * factor;
+
+    return GradientVoxel {dir, magnitude};
 }
 
 // This function returns a gradientVoxel without using interpolation
