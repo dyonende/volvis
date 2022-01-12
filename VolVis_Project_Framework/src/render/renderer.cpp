@@ -184,7 +184,13 @@ glm::vec4 Renderer::traceRayISO(const Ray& ray, float sampleStep) const
     for (float t = ray.tmin; t <= ray.tmax; t += sampleStep, samplePos += increment) {
         const float val = m_pVolume->getSampleInterpolate(samplePos);
         if (val >= isoVal) {
-            return glm::vec4(isoColor, 1.0f);
+            if (!m_config.volumeShading)
+                return glm::vec4(isoColor, 1.0f);
+
+            const volume::GradientVoxel gradient = m_pGradientVolume->getGradient(samplePos.x, samplePos.y, samplePos.z);
+            const glm::vec3 light = m_pCamera->position();
+            glm::vec3 shading = computePhongShading(isoColor, gradient, light, ray.direction);
+            return glm::vec4(shading, 1.0f);
         }
     }
 
@@ -209,7 +215,22 @@ float Renderer::bisectionAccuracy(const Ray& ray, float t0, float t1, float isoV
 // You are free to choose any specular power that you'd like.
 glm::vec3 Renderer::computePhongShading(const glm::vec3& color, const volume::GradientVoxel& gradient, const glm::vec3& L, const glm::vec3& V)
 {
-    return glm::vec3(0.0f);
+    const glm::vec3 n = glm::normalize(gradient.dir);
+    const glm::vec3 R = (2 * glm::dot(n, L)) * n - L;
+
+    const glm::vec3 k = glm::vec3(.1f, .7f, .2f);
+    const glm::vec3 I = color;
+    const glm::vec3 S = glm::vec3(1.f);
+    const float alpha = 100.f;
+
+    const float cos_theta = glm::dot(L, n) / (glm::length(L) * glm::length(n));
+    const float cos_phi = glm::dot(R, V) / (glm::length(R) * glm::length(V));
+
+    const glm::vec3 ambient = k.x*(I * S);
+    const glm::vec3 diffuse = k.y * (I * S) * pow(cos_theta, alpha);
+    const glm::vec3 specular = k.z * (I * S) * pow(cos_phi, alpha);
+
+    return ambient + diffuse + specular;
 }
 
 // ======= TODO: IMPLEMENT ========

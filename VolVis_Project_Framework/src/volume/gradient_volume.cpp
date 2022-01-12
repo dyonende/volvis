@@ -119,7 +119,32 @@ GradientVoxel GradientVolume::getGradientLinearInterpolate(const glm::vec3& coor
     if (glm::any(glm::lessThan(coord - .5f, glm::vec3(0))) || glm::any(glm::greaterThanEqual(coord + .5f, glm::vec3(m_dim))))
         return { glm::vec3(0.0f), 0.0f };
 
-    return GradientVoxel {};
+    const int z_pos = ceil(coord.z);
+    const int z_neg = floor(coord.z);
+
+    const GradientVoxel bilini_pos = biLinearInterpolate(glm::vec2(coord.x, coord.y), z_pos);
+    const GradientVoxel bilini_neg = biLinearInterpolate(glm::vec2(coord.x, coord.y), z_neg);
+
+    const float factor_z = (coord.z - z_neg) / (z_pos - z_neg);
+    return linearInterpolate(bilini_neg, bilini_pos, factor_z);
+
+}
+
+GradientVoxel GradientVolume::biLinearInterpolate(const glm::vec2& xyCoord, int z) const
+{
+
+    const int y_neg = floor(xyCoord.y);
+    const int y_pos = ceil(xyCoord.y);
+    const int x_neg = floor(xyCoord.x);
+    const int x_pos = ceil(xyCoord.x);
+
+    const float factor_x = (xyCoord.x - x_neg) / (x_pos - x_neg);
+    const float factor_y = (xyCoord.y - y_neg) / (y_pos - y_neg);
+
+    const GradientVoxel g0 = linearInterpolate(getGradient(x_neg, y_neg, z), getGradient(x_pos, y_neg, z), factor_x);
+    const GradientVoxel g1 = linearInterpolate(getGradient(x_neg, y_pos, z), getGradient(x_pos, y_pos, z), factor_x);
+
+    return linearInterpolate(g0, g1, factor_y);
 }
 
 // ======= TODO : IMPLEMENT ========
