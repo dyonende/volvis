@@ -187,11 +187,12 @@ glm::vec4 Renderer::traceRayISO(const Ray& ray, float sampleStep) const
         if (val >= isoVal) {
             if (!m_config.volumeShading)
                 return glm::vec4(isoColor, 1.0f);
-
+            
+            float t_new = t;
             if (val!=isoVal) 
-                t = bisectionAccuracy(ray, t - 1.0f, t, isoVal);
-
-            glm::vec3 samplePos_t = ray.origin + t * ray.direction;
+                t_new = bisectionAccuracy(ray, t - 1.0f, t, isoVal);
+            
+            glm::vec3 samplePos_t = ray.origin + t_new * ray.direction;
 
             const volume::GradientVoxel gradient = m_pGradientVolume->getGradientInterpolate(samplePos_t);
             
@@ -209,7 +210,7 @@ glm::vec4 Renderer::traceRayISO(const Ray& ray, float sampleStep) const
 // iterations such that it does not get stuck in degerate cases.
 float Renderer::bisectionAccuracy(const Ray& ray, float t0, float t1, float isoValue) const
 {
-    const int max_iter = 50;
+    const int max_iter = 10;
     const float threshold = 0.01f;
 
     float t_left = t0;
@@ -245,18 +246,20 @@ float Renderer::bisectionAccuracy(const Ray& ray, float t0, float t1, float isoV
 glm::vec3 Renderer::computePhongShading(const glm::vec3& color, const volume::GradientVoxel& gradient, const glm::vec3& L, const glm::vec3& V)
 {
     const glm::vec3 n = glm::normalize(gradient.dir);
-    const glm::vec3 R = (2 * glm::dot(n, L)) * n - L;
+    const glm::vec3 L_norm = glm::normalize(L);
+    const glm::vec3 R = (2 * glm::dot(n, L_norm)) * n - L_norm;
 
     const glm::vec3 k = glm::vec3(.1f, .7f, .2f);
     const glm::vec3 I = color;
     const glm::vec3 S = glm::vec3(1.f);
+
     const float alpha = 100.f;
 
-    const float cos_theta = glm::dot(L, n) / (glm::length(L) * glm::length(n));
+    const float cos_theta = glm::dot(L_norm, n) / (glm::length(L_norm) * glm::length(n));
     const float cos_phi = glm::dot(R, V) / (glm::length(R) * glm::length(V));
 
     const glm::vec3 ambient = k.x*(I * S);
-    const glm::vec3 diffuse = k.y * (I * S) * pow(cos_theta, alpha);
+    const glm::vec3 diffuse = k.y * (I * S) *abs(cos_theta);
     const glm::vec3 specular = k.z * (I * S) * pow(cos_phi, alpha);
 
     return ambient + diffuse + specular;
