@@ -175,6 +175,7 @@ glm::vec4 Renderer::traceRayMIP(const Ray& ray, float sampleStep) const
 // Use the bisectionAccuracy function (to be implemented) to get a more precise isosurface location between two steps.
 glm::vec4 Renderer::traceRayISO(const Ray& ray, float sampleStep) const
 {
+    const glm::vec3 light = m_pCamera->position();
     static constexpr glm::vec3 isoColor { 0.8f, 0.8f, 0.2f };
     float isoVal = m_config.isoValue;
 
@@ -187,8 +188,13 @@ glm::vec4 Renderer::traceRayISO(const Ray& ray, float sampleStep) const
             if (!m_config.volumeShading)
                 return glm::vec4(isoColor, 1.0f);
 
-            const volume::GradientVoxel gradient = m_pGradientVolume->getGradient(samplePos.x, samplePos.y, samplePos.z);
-            const glm::vec3 light = m_pCamera->position();
+            if (val!=isoVal) 
+                t = bisectionAccuracy(ray, t - 1.0f, t, isoVal);
+
+            glm::vec3 samplePos_t = ray.origin + t * ray.direction;
+
+            const volume::GradientVoxel gradient = m_pGradientVolume->getGradientInterpolate(samplePos_t);
+            
             glm::vec3 shading = computePhongShading(isoColor, gradient, light, ray.direction);
             return glm::vec4(shading, 1.0f);
         }
@@ -203,7 +209,30 @@ glm::vec4 Renderer::traceRayISO(const Ray& ray, float sampleStep) const
 // iterations such that it does not get stuck in degerate cases.
 float Renderer::bisectionAccuracy(const Ray& ray, float t0, float t1, float isoValue) const
 {
-    return 0.0f;
+    const int max_iter = 50;
+    const float threshold = 0.01f;
+
+    float t_left = t0;
+    float t_right = t1;
+    float t = (t_left + t_right)/2;
+
+        // Incrementing samplePos directly instead of recomputing it each frame gives a measureable speed-up.
+    glm::vec3 samplePos = ray.origin + t * ray.direction;
+
+    for (int i = 0; i<max_iter; i++) {
+        t = (t_left + t_right) / 2;
+        samplePos = ray.origin + t*ray.direction;
+        const float val = m_pVolume->getSampleInterpolate(samplePos);
+
+        if (abs(val-isoValue)<threshold)
+            return t;
+
+        if (val > isoValue)
+            t_right = t;
+        else
+            t_left = t;        
+    }
+    return t;
 }
 
 // ======= TODO: IMPLEMENT ========
