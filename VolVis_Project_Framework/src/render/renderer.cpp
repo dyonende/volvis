@@ -251,7 +251,7 @@ glm::vec3 Renderer::computePhongShading(const glm::vec3& color, const volume::Gr
 
     const glm::vec3 k = glm::vec3(.1f, .7f, .2f);
     const glm::vec3 I = color;
-    const glm::vec3 S = glm::vec3(1.f);
+    const glm::vec3 S = I;
 
     const float alpha = 100.f;
 
@@ -270,7 +270,36 @@ glm::vec3 Renderer::computePhongShading(const glm::vec3& color, const volume::Gr
 // Use getTFValue to compute the color for a given volume value according to the 1D transfer function.
 glm::vec4 Renderer::traceRayComposite(const Ray& ray, float sampleStep) const
 {
-    return glm::vec4(0.0f);
+    glm::vec4 C = glm::vec4(0);
+    glm::vec3 samplePos = ray.origin + ray.tmax * ray.direction;
+    const glm::vec3 increment = sampleStep * ray.direction;
+
+    for (float t = ray.tmax; t >= ray.tmin; t -= sampleStep, samplePos -= increment) {
+        const float val = m_pVolume->getSampleInterpolate(samplePos);
+        const glm::vec4 TFval = getTFValue(val);
+        glm::vec3 color = glm::vec3(TFval.r, TFval.g, TFval.b);
+        const float A = TFval.a;
+        glm::vec4 C_i = glm::vec4(0);
+
+        if (m_config.volumeShading) {
+            const glm::vec3 light = m_pCamera->position();
+            const volume::GradientVoxel gradient = m_pGradientVolume->getGradientInterpolate(samplePos);
+
+            //For some reason I can't implement this check in the computePhongShading function itself
+            if (!glm::all(glm::equal(gradient.dir, glm::vec3(0)))) {
+                glm::vec3 shading = computePhongShading(color, gradient, light, ray.direction);
+                C_i = glm::vec4(shading * A, A);
+            }                    
+        } else {
+            C_i = glm::vec4(color * A, A);
+        }
+
+        C = C_i + (1 - A) * C;
+
+    }
+        
+
+    return C;
 }
 
 // ======= DO NOT MODIFY THIS FUNCTION ========
