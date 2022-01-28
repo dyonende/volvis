@@ -347,9 +347,9 @@ glm::vec4 Renderer::traceRayTF2D(const Ray& ray, float sampleStep) const
         volume::GradientVoxel grad = m_pGradientVolume->getGradientInterpolate(glm::vec3 { samplePos[0], samplePos[1], samplePos[2] });
 
         // Opacity
-        float OpacityTF = getTF2DOpacity(val, grad.magnitude);
+        float TFOpacity = getTF2DOpacity(val, grad.magnitude);
         // Position colour
-        const glm::vec3 currentColor(colorVector * OpacityTF);
+        const glm::vec3 currentColor(colorVector * TFOpacity);
 
         float x0 = currentColor[0] * (1 - Ai);
         float x1 = currentColor[1] * (1 - Ai);
@@ -357,7 +357,7 @@ glm::vec4 Renderer::traceRayTF2D(const Ray& ray, float sampleStep) const
         glm::vec3 Ac(x0, x1, x2);
 
         Ci = Ci + Ac;
-        Ai = Ai + (1 - Ai) * OpacityTF;
+        Ai = Ai + (1 - Ai) * TFOpacity;
         C = glm::vec4(Ci, Ai);
     }
 
