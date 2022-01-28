@@ -111,57 +111,65 @@ GradientVoxel GradientVolume::getGradientNearestNeighbor(const glm::vec3& coord)
     return getGradient(roundToPositiveInt(coord.x), roundToPositiveInt(coord.y), roundToPositiveInt(coord.z));
 }
 
-// ======= TODO : IMPLEMENT ========
 // Returns the trilinearly interpolated gradinet at the given coordinate.
 // Use the linearInterpolate function that you implemented below.
 GradientVoxel GradientVolume::getGradientLinearInterpolate(const glm::vec3& coord) const
 {
+    //check boundaries
     if (glm::any(glm::lessThan(coord - 1.f, glm::vec3(0))) || glm::any(glm::greaterThanEqual(coord + 1.f, glm::vec3(m_dim))))
         return { glm::vec3(0.0f), 0.0f };
 
+    //round z-coordinate
     const int z_pos = ceil(coord.z);
     const int z_neg = floor(coord.z);
 
-    const GradientVoxel bilini_pos = biLinearInterpolate(glm::vec2(coord.x, coord.y), z_pos);
-    const GradientVoxel bilini_neg = biLinearInterpolate(glm::vec2(coord.x, coord.y), z_neg);
+    //bilinear interpolation for the round z-coordinates
+    const GradientVoxel bilinear_pos = biLinearInterpolate(glm::vec2(coord.x, coord.y), z_pos);
+    const GradientVoxel bilinear_neg = biLinearInterpolate(glm::vec2(coord.x, coord.y), z_neg);
 
     const float factor_z = (coord.z - z_neg) / (z_pos - z_neg);
-    return linearInterpolate(bilini_neg, bilini_pos, factor_z);
+    
+    //linear interpolation with results from bilinear interpolation over z axis
+    return linearInterpolate(bilinear_neg, bilinear_pos, factor_z);
 
 }
 
 GradientVoxel GradientVolume::biLinearInterpolate(const glm::vec2& xyCoord, int z) const
 {
-
+    //round the x and y coordinates
     const int y_neg = floor(xyCoord.y);
     const int y_pos = ceil(xyCoord.y);
+
     const int x_neg = floor(xyCoord.x);
     const int x_pos = ceil(xyCoord.x);
 
+    //calculate the x and y factor
     const float factor_x = (xyCoord.x - x_neg) / (x_pos - x_neg);
     const float factor_y = (xyCoord.y - y_neg) / (y_pos - y_neg);
 
+    //linear interpolate over x axis
     const GradientVoxel g0 = linearInterpolate(getGradient(x_neg, y_neg, z), getGradient(x_pos, y_neg, z), factor_x);
     const GradientVoxel g1 = linearInterpolate(getGradient(x_neg, y_pos, z), getGradient(x_pos, y_pos, z), factor_x);
 
+    //linear interpolate over y-axis
     return linearInterpolate(g0, g1, factor_y);
 }
 
-// ======= TODO : IMPLEMENT ========
 // This function should linearly interpolates the value from g0 to g1 given the factor (t).
 // At t=0, linearInterpolate should return g0 and at t=1 it returns g1.
 GradientVoxel GradientVolume::linearInterpolate(const GradientVoxel& g0, const GradientVoxel& g1, float factor)
 {
+    //check whether the factor is allowed
     if (factor < 0.f || factor > 1.f)
         throw std::exception();
 
-    glm::vec3 temp0 = g0.dir * (1 - factor);
-    glm::vec3 temp1 = g1.dir * factor;
-    glm::vec3 dir = temp0 + temp1;
+    const glm::vec3 g0_value = g0.dir * (1 - factor);
+    const glm::vec3 g1_value = g1.dir * factor;
+    const glm::vec3 new_value = g0_value + g1_value;
 
     float magnitude = g0.magnitude * (1 - factor) + g1.magnitude * factor;
 
-    return GradientVoxel {dir, magnitude};
+    return GradientVoxel {new_value, magnitude};
 }
 
 // This function returns a gradientVoxel without using interpolation

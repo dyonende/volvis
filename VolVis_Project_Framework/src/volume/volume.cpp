@@ -133,14 +133,18 @@ float Volume::getSampleTriLinearInterpolation(const glm::vec3& coord) const
     if (glm::any(glm::lessThan(coord - 5.f, glm::vec3(0))) || glm::any(glm::greaterThanEqual(coord + 5.f, glm::vec3(m_dim))))
         return 0.0f;
 
+    //round the z-coordinate
     const int z_pos = ceil(coord.z);
     const int z_neg = floor(coord.z);
 
-    const float bilini_pos = biLinearInterpolate(glm::vec2(coord.x, coord.y), z_pos);
-    const float bilini_neg = biLinearInterpolate(glm::vec2(coord.x, coord.y), z_neg);
+    //bilinear interpolation for the rounded z-coordinate
+    const float bilinear_pos = biLinearInterpolate(glm::vec2(coord.x, coord.y), z_pos);
+    const float bilinear_neg = biLinearInterpolate(glm::vec2(coord.x, coord.y), z_neg);
 
     const float factor_z = (coord.z - z_neg) / (z_pos - z_neg);
-    return linearInterpolate(bilini_neg, bilini_pos, factor_z);
+
+    //return the linear interpolation of the bilinear values
+    return linearInterpolate(bilinear_neg, bilinear_pos, factor_z);
 }
 
 // This function linearly interpolates the value at X using incoming values g0 and g1 given a factor (equal to the positon of x in 1D)
@@ -149,6 +153,7 @@ float Volume::getSampleTriLinearInterpolation(const glm::vec3& coord) const
 //   factor
 float Volume::linearInterpolate(float g0, float g1, float factor)
 {
+    //check whether the factor is allowed
     if (factor < 0 || factor > 1) throw std::exception();
 
     return g0 * (1-factor) + g1 * factor;
@@ -158,18 +163,22 @@ float Volume::linearInterpolate(float g0, float g1, float factor)
 // This function bi-linearly interpolates the value at the given continuous 2D XY coordinate for a fixed integer z coordinate.
 float Volume::biLinearInterpolate(const glm::vec2& xyCoord, int z) const
 {
-
+    //round the x and y coordinates
      const int y_neg = floor(xyCoord.y);
      const int y_pos = ceil(xyCoord.y);
+
      const int x_neg = floor(xyCoord.x);
      const int x_pos = ceil(xyCoord.x);
 
+     //calculate the factors for x and y
      const float factor_x = (xyCoord.x - x_neg) / (x_pos - x_neg);
      const float factor_y = (xyCoord.y - y_neg) / (y_pos - y_neg);
 
+     //linear interpolation over the x axis
      const float g0 = linearInterpolate(getVoxel(x_neg, y_neg, z), getVoxel(x_pos, y_neg, z), factor_x);
      const float g1 = linearInterpolate(getVoxel(x_neg, y_pos, z), getVoxel(x_pos, y_pos, z), factor_x);
         
+     //linear interpolation over the y-axis
      return linearInterpolate(g0, g1, factor_y);
 
 }
