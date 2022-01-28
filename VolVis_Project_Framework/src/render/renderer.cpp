@@ -189,17 +189,17 @@ glm::vec4 Renderer::traceRayISO(const Ray& ray, float sampleStep) const
             //no shading
             if (!m_config.volumeShading)
                 return glm::vec4(isoColor, 1.0f);
-            
+
             float t_new = t; //use for bisection result
             //if t is not exactly isovalue, apply bisection algorithm
-            if (val!=isoVal) 
+            if (val != isoVal)
                 t_new = bisectionAccuracy(ray, t - 1.0f, t, isoVal);
-            
+
             //new sampleposition for t_new
             glm::vec3 samplePos_t = ray.origin + t_new * ray.direction;
 
             const volume::GradientVoxel gradient = m_pGradientVolume->getGradientInterpolate(samplePos_t);
-            
+
             glm::vec3 shading = computePhongShading(isoColor, gradient, light, ray.direction);
             return glm::vec4(shading, 1.0f);
         }
@@ -214,29 +214,29 @@ glm::vec4 Renderer::traceRayISO(const Ray& ray, float sampleStep) const
 float Renderer::bisectionAccuracy(const Ray& ray, float t0, float t1, float isoValue) const
 {
     static constexpr int max_iter = 10; //max iterations
-    const float threshold = 0.01f;      //difference threshold
+    const float threshold = 0.01f; //difference threshold
 
     float t_left = t0;
     float t_right = t1;
-    float t = (t_left + t_right)/2;
+    float t = (t_left + t_right) / 2;
 
     // Incrementing samplePos directly instead of recomputing it each frame gives a measureable speed-up.
     glm::vec3 samplePos = ray.origin + t * ray.direction;
 
-    for (int i = 0; i<max_iter; i++) {
+    for (int i = 0; i < max_iter; i++) {
         t = (t_left + t_right) / 2;
-        samplePos = ray.origin + t*ray.direction;
+        samplePos = ray.origin + t * ray.direction;
         const float val = m_pVolume->getSampleInterpolate(samplePos);
 
         //found t value
-        if (abs(val-isoValue)<threshold)
+        if (abs(val - isoValue) < threshold)
             return t;
 
         //update search boundaries (left/right)
         if (val > isoValue)
             t_right = t;
         else
-            t_left = t;        
+            t_left = t;
     }
     return t;
 }
@@ -266,7 +266,7 @@ glm::vec3 Renderer::computePhongShading(const glm::vec3& color, const volume::Gr
     const float cos_phi = glm::dot(R, V) / (glm::length(R) * glm::length(V));
 
     //phong layers
-    const glm::vec3 ambient = k.x*(I * S);
+    const glm::vec3 ambient = k.x * (I * S);
     const glm::vec3 diffuse = k.y * (I * S) * abs(cos_theta);
     const glm::vec3 specular = k.z * (I * S) * pow(cos_phi, alpha);
 
@@ -295,17 +295,17 @@ glm::vec4 Renderer::traceRayComposite(const Ray& ray, float sampleStep) const
             const volume::GradientVoxel gradient = m_pGradientVolume->getGradientInterpolate(samplePos);
 
             //check whether the voxel is not 0
-            //For some reason I can't implement this check in the computePhongShading function itself         
+            //For some reason I can't implement this check in the computePhongShading function itself
             if (!glm::all(glm::equal(gradient.dir, glm::vec3(0)))) {
                 glm::vec3 shading = computePhongShading(color, gradient, light, ray.direction);
                 C_i = glm::vec4(shading * A, A);
-            }                    
+            }
         } else {
             C_i = glm::vec4(color * A, A);
         }
 
         C = C_i + (1 - A) * C;
-    }   
+    }
 
     return C;
 }
@@ -326,9 +326,42 @@ glm::vec4 Renderer::getTFValue(float val) const
 // Use the getTF2DOpacity function that you implemented to compute the opacity according to the 2D transfer function.
 glm::vec4 Renderer::traceRayTF2D(const Ray& ray, float sampleStep) const
 {
-    return glm::vec4(0.0f);
-}
+    // Initializing vectors
+    glm::vec4 C(0.0f);
+    glm::vec3 Ci(0.0f);
+    glm::vec4 colorVector = m_config.TF2DColor;
 
+    float Ai = 0.0f;
+    glm::vec3 samplePos = ray.origin + ray.tmin * ray.direction;
+    const glm::vec3 increment = sampleStep * ray.direction;
+
+    // Front to back compositing
+    for (float t = ray.tmin; t <= ray.tmax; t += sampleStep, samplePos += increment) {
+
+        if (Ai >= 0.95) {
+            break;
+        }
+
+        const float val = m_pVolume->getSampleInterpolate(samplePos);
+        const glm::vec4 TFval = getTFValue(val);
+        volume::GradientVoxel grad = m_pGradientVolume->getGradientInterpolate(glm::vec3 { samplePos[0], samplePos[1], samplePos[2] });
+
+        float OpacityTF = getTF2DOpacity(val, grad.magnitude);
+        // Position colour
+        const glm::vec3 currentColor(colorVector * OpacityTF);
+
+        float x0 = currentColor[0] * (1 - Ai);
+        float x1 = currentColor[1] * (1 - Ai);
+        float x2 = currentColor[2] * (1 - Ai);
+        glm::vec3 Ac(x0, x1, x2);
+
+        Ci = Ci + Ac;
+        Ai = Ai + (1 - Ai) * OpacityTF;
+        C = glm::vec4(Ci, Ai);
+    }
+
+    return C;
+}
 // ======= TODO: IMPLEMENT ========
 // This function should return an opacity value for the given intensity and gradient according to the 2D transfer function.
 // Calculate whether the values are within the radius/intensity triangle defined in the 2D transfer function widget.
@@ -338,7 +371,20 @@ glm::vec4 Renderer::traceRayTF2D(const Ray& ray, float sampleStep) const
 // The 2D transfer function settings can be accessed through m_config.TF2DIntensity and m_config.TF2DRadius.
 float Renderer::getTF2DOpacity(float intensity, float gradientMagnitude) const
 {
-    return 0.0f;
+    float TFIntensity = m_config.TF2DIntensity;
+    float TFRadius = m_config.TF2DRadius;
+    float A = 0.0;
+
+    float slope = (m_pGradientVolume->maxMagnitude() / TFRadius);
+    float input = abs(intensity - TFIntensity);
+
+    // Inside of a triangle
+    if (gradientMagnitude >= slope * input) {
+        float factor = (input / (gradientMagnitude / slope));
+        float interp_val = ((1 - factor) + (factor * 0));
+        A = m_config.TF2DColor.a * interp_val;
+    }
+    return A;
 }
 
 // This function computes if a ray intersects with the axis-aligned bounding box around the volume.
