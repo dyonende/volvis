@@ -344,10 +344,10 @@ glm::vec4 Renderer::traceRayTF2D(const Ray& ray, float sampleStep) const
 
         const float val = m_pVolume->getSampleInterpolate(samplePos);
         const glm::vec4 TFval = getTFValue(val);
-        volume::GradientVoxel grad = m_pGradientVolume->getGradientInterpolate(glm::vec3 { samplePos[0], samplePos[1], samplePos[2] });
+        volume::GradientVoxel gradient = m_pGradientVolume->getGradientInterpolate(samplePos);
 
         // Opacity
-        float TFOpacity = getTF2DOpacity(val, grad.magnitude);
+        float TFOpacity = getTF2DOpacity(val, gradient.magnitude);
         // Position colour
         const glm::vec3 currentColor(colorVector * TFOpacity);
 
